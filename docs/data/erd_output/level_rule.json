@@ -1,0 +1,16 @@
+[
+  {
+    "level_rule_id": 1,
+    "version": "v1.0",
+    "name": "MVP-상대평가-가중합",
+    "w_accident_rate": 0.25,
+    "w_road_shape": 0.2,
+    "w_road_scale": 0.15,
+    "w_intersection": 0.15,
+    "w_traffic_volume": 0.25,
+    "level1_max": 31.0,
+    "level2_max": 41.8,
+    "is_active": true,
+    "created_at": "2026-02-16 01:31:59"
+  }
+]

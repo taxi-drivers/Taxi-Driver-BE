@@ -36,6 +36,9 @@ out/
 ### VS Code ###
 .vscode/
 
+### Secrets ###
+src/main/resources/application.yml
+
 ### AI Tools ###
 .claude/
 .cursor/

@@ -64,20 +64,32 @@ com.driving.backend/
 
 > 상세: `docs/DB_SCHEMA.md` (dbdiagram.io DBML 형식)
 
+### 테이블 관계 요약
+
+```
+users (1) ──── (1) user_profile
+                     └── vulnerability_type_id → vulnerability_type
+
+road_segments (1) ── (1) segment_score
+road_segments (1) ── (N) segment_level  ←── level_rule
+road_segments (1) ── (N) segment_vulnerability_map → vulnerability_type
+```
+
 ### 핵심 테이블
 
-**users** - 사용자
+**users** - 사용자 기본 정보
 ```
-user_id (PK), email, nickname, skill_level (int, 0~100),
-vulnerability_type_id (FK), created_at, updated_at
-```
-
-**user_vulnerability_map** - 사용자-취약특성 N:M 매핑
-```
-user_id (PK, FK), vulnerability_type_id (PK, FK), created_at
+user_id (PK, BIGINT), email (UNIQUE), nickname, created_at
 ```
 
-**vulnerability_type** - 취약 특성 코드 (5개)
+**user_profile** - 사용자 숙련도 & 취약특성 (users와 1:1)
+```
+user_id (PK, FK), skill_level (INT, 0~100),
+vulnerability_type_id (FK, 단일 선택), created_at, updated_at
+```
+> ⚠️ user_vulnerability_map N:M 테이블 없음 - 단일 FK로 통합
+
+**vulnerability_type** - 취약 특성 코드 (5개 고정)
 ```
 vulnerability_type_id (PK), code, name, description, icon_key
 ```
@@ -89,25 +101,37 @@ vulnerability_type_id (PK), code, name, description, icon_key
 | 4 | AVOID_HIGH_TRAFFIC | 교통량 많은 도로 회피 |
 | 5 | AVOID_ACCIDENT_PRONE | 사고다발구간 회피 |
 
-**road_segments** - 도로 세그먼트 통합 테이블 (7,200개, 500m 단위)
+**road_segments** - 도로 세그먼트 지리 정보 (7,200개)
 ```
 segment_id (PK, "SEG_000001"), name, highway,
 start_lat/lon, end_lat/lon, center_lat/lon,
-coordinates_json (polyline 좌표 배열),
+num_points, coordinates_json (polyline JSON),
+created_at, updated_at
+```
+
+**segment_score** - 세그먼트 난이도 점수 (road_segments와 1:1)
+```
+segment_id (PK, FK),
 total_score (0~100), level_text,
 accident_rate_score, road_shape_score, road_scale_score,
 intersection_score, traffic_volume_score,
 explanation (Hover용), detail_description (Click용),
-evidence_json (원천 근거 카드 배열),
-level_rule_id (FK), level (1~3), level_score,
-computed_at, created_at, updated_at
+detail_source, detail_source_ref, detail_updated_at,
+computed_at
 ```
 
 **level_rule** - 난이도 산출 규칙 (1개)
 ```
 level_rule_id (PK), version, name,
-w_accident_rate, w_road_shape, w_road_scale, w_intersection, w_traffic_volume,
-level1_max, level2_max, is_active, created_at
+w_accident_rate(0.25), w_road_shape(0.20), w_road_scale(0.15),
+w_intersection(0.15), w_traffic_volume(0.25),
+level1_max(31.0), level2_max(41.8), is_active, created_at
+```
+
+**segment_level** - 세그먼트별 레벨 산출 결과 (PK: segment_id + level_rule_id)
+```
+segment_id (PK, FK), level_rule_id (PK, FK),
+level (1~3), level_score, computed_at
 ```
 
 **segment_vulnerability_map** - 세그먼트-취약특성 매핑 (9,018개)
@@ -120,8 +144,10 @@ severity (0.5~1.0), note, source, updated_at
 
 현재 Entity(User, RoadTile, TileScore, Route, Feedback)는 **구 버전**이며, 위 ERD와 구조가 다름.
 ERD 기반으로 재설계 필요:
-- `RoadTile` + `TileScore` → `RoadSegment` (통합, segment_score/segment_level 포함)
-- `User` → email/password 대신 email/nickname + skill_level(int) + vulnerability 매핑
+- `User` → `User` + `UserProfile` 분리 (email/nickname + skill_level(int) + vulnerability_type_id FK)
+- `RoadTile` → `RoadSegment` (지리 정보만)
+- `TileScore` → `SegmentScore` (점수/설명)
+- 신규: `SegmentLevel`, `LevelRule`, `VulnerabilityType`, `SegmentVulnerabilityMap`
 - `Route`, `Feedback` → 경로 탐색 Phase(6~8주차)에 설계
 
 ## 난이도 산출 공식

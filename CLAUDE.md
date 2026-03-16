@@ -58,7 +58,7 @@ com.driving.backend/
 └── BackendApplication.java
 ```
 
-**현재 상태**: entity/ 만 존재 (구 버전). repository/service/controller는 아직 없음.
+**현재 상태 (2026-03-16)**: Entity 재설계 완료. repository/service/controller는 gitkeep만 존재, PSJ/week2 브랜치에서 구현 중.
 
 ## DB 스키마 (ERD 기반, 최신)
 
@@ -70,10 +70,12 @@ com.driving.backend/
 users (1) ──── (1) user_profile
                      └── vulnerability_type_id → vulnerability_type
 
-road_segments (1) ── (1) segment_score
-road_segments (1) ── (N) segment_level  ←── level_rule
 road_segments (1) ── (N) segment_vulnerability_map → vulnerability_type
+road_segments (N) ──── (1) level_rule
 ```
+
+> ⚠️ [JY] Entity 통합 (2026-03-16): segment_score + segment_level → road_segments 단일 테이블로 통합됨
+> RoadSegment Entity에 totalScore, level, levelScore, 5개 세부점수, explanation 등이 직접 포함
 
 ### 핵심 테이블
 
@@ -140,15 +142,17 @@ segment_id (PK, FK), vulnerability_type_id (PK, FK),
 severity (0.5~1.0), note, source, updated_at
 ```
 
-### Entity 재설계 필요사항
+### Entity 현황 (재설계 완료)
 
-현재 Entity(User, RoadTile, TileScore, Route, Feedback)는 **구 버전**이며, 위 ERD와 구조가 다름.
-ERD 기반으로 재설계 필요:
-- `User` → `User` + `UserProfile` 분리 (email/nickname + skill_level(int) + vulnerability_type_id FK)
-- `RoadTile` → `RoadSegment` (지리 정보만)
-- `TileScore` → `SegmentScore` (점수/설명)
-- 신규: `SegmentLevel`, `LevelRule`, `VulnerabilityType`, `SegmentVulnerabilityMap`
-- `Route`, `Feedback` → 경로 탐색 Phase(6~8주차)에 설계
+| Entity | 상태 | 비고 |
+|--------|------|------|
+| `User` | ✅ | email, nickname |
+| `UserProfile` | ✅ | skill_level, vulnerability_type_id FK |
+| `RoadSegment` | ✅ | 지리정보 + score + level 통합 |
+| `LevelRule` | ✅ | 난이도 산출 규칙 |
+| `VulnerabilityType` | ✅ | 5개 고정 코드 |
+| `SegmentVulnerabilityMap` | ✅ | 복합키(segmentId + vulnerabilityTypeId) |
+| `Route`, `Feedback` | ❌ 미구현 | 6~8주차 경로 탐색 Phase에서 설계 예정 |
 
 ## 난이도 산출 공식
 
@@ -225,12 +229,16 @@ Level 판정 (상대평가):
 
 > 상세: `docs/DEV_PLAN.md`
 
-**지금 해야 할 것 (Phase 1, 1~2주차):**
-1. ERD 기반 Entity 클래스 재설계
-2. 패키지 구조 셋업 (controller/service/repository/dto/config)
-3. MySQL에 erd_output 데이터 임포트
-4. 도로 데이터 Repository/Service 구현
-5. 설문 관련 Entity/DTO 설계 + API 착수
+**완료 (Phase 1, 1~2주차):**
+- ✅ ERD 기반 Entity 재설계 (준영 + 승종)
+- ✅ 패키지 구조 셋업
+- ✅ [JY] SegmentScore/Level → RoadSegment 통합
+
+**진행 중 (Phase 2, 3~4주차, PSJ/week2 브랜치):**
+1. 🔄 RoadSegmentRepository 구현
+2. 🔄 DTO 5개 (SegmentSummaryResponse, SegmentDetailResponse, SegmentTooltipResponse, SegmentDifficultyResponse, SegmentScoreDetailResponse)
+3. 🔄 RoadSegmentService 구현
+4. ⬜ RoadSegmentController 구현 (Service 완료 후)
 
 ## 주의사항
 

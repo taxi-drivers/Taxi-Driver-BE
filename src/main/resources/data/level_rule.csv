@@ -1,0 +1,2 @@
+﻿level_rule_id,version,name,w_accident_rate,w_road_shape,w_road_scale,w_intersection,w_traffic_volume,level1_max,level2_max,is_active,created_at
+1,v1.0,MVP-상대평가-가중합,0.25,0.2,0.15,0.15,0.25,31.0,41.8,True,2026-02-16 01:31:59

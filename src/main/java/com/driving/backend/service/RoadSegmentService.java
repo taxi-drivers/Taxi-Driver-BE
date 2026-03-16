@@ -20,7 +20,7 @@ public class RoadSegmentService {
     // GET /api/segments?minLat=&maxLat=&minLon=&maxLon=
     public List<SegmentSummaryResponse> getSegmentsByBounds(
             Double minLat, Double maxLat, Double minLon, Double maxLon) {
-        return roadSegmentRepository.findByBounds(minLat, maxLat, minLon, maxLon)
+        return roadSegmentRepository.findByBounds(minLat, minLon, maxLat, maxLon)
                 .stream()
                 .map(SegmentSummaryResponse::from)
                 .collect(Collectors.toList());

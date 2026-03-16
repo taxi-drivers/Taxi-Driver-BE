@@ -12,6 +12,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.core.io.ClassPathResource;
+import org.springframework.security.crypto.bcrypt.BCrypt;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -40,6 +41,7 @@ public class DataLoader implements CommandLineRunner {
     private final SegmentVulnerabilityMapRepository segmentVulnerabilityMapRepository;
     private final UserRepository userRepository;
     private final UserProfileRepository userProfileRepository;
+    private final UserVulnerabilityMapRepository userVulnerabilityMapRepository;
     private final GraphNodeRepository graphNodeRepository;
     private final GraphEdgeRepository graphEdgeRepository;
     private final com.driving.backend.service.GraphService graphService;
@@ -399,15 +401,27 @@ public class DataLoader implements CommandLineRunner {
 
         User mockUser = User.builder()
                 .email("test@test.com")
+                .passwordHash(BCrypt.hashpw("1234", BCrypt.gensalt()))
                 .nickname("테스트유저")
                 .build();
         userRepository.save(mockUser);
 
+        VulnerabilityType primaryType = vulnerabilityTypeRepository.findById(1).orElse(null);
+
         UserProfile profile = UserProfile.builder()
                 .user(mockUser)
                 .skillLevel(50)
+                .vulnerabilityType(primaryType)
                 .build();
         userProfileRepository.save(profile);
+
+        if (primaryType != null) {
+            userVulnerabilityMapRepository.save(UserVulnerabilityMap.builder()
+                    .userId(mockUser.getUserId())
+                    .vulnerabilityTypeId(primaryType.getVulnerabilityTypeId())
+                    .createdAt(LocalDateTime.now())
+                    .build());
+        }
 
         log.info("[OK] mock user 생성 (id={}, email=test@test.com, skillLevel=50)", mockUser.getUserId());
     }

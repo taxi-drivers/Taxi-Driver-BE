@@ -45,3 +45,4 @@ src/main/resources/application.yml
 .antigravity/
 *.claude.log
 *.cursor.log
+CLAUDE.md

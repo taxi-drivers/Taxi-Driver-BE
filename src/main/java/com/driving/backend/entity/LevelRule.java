@@ -14,7 +14,6 @@ import java.time.LocalDateTime;
 public class LevelRule {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "level_rule_id")
     private Long levelRuleId;
 
@@ -50,9 +49,4 @@ public class LevelRule {
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
-
-    @PrePersist
-    void prePersist() {
-        this.createdAt = LocalDateTime.now();
-    }
 }

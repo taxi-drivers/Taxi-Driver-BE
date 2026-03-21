@@ -1,5 +1,6 @@
 HELP.md
 .gradle
+.gradle-user-home/
 build/
 !gradle/wrapper/gradle-wrapper.jar
 !**/src/main/**/build/
@@ -36,9 +37,13 @@ out/
 ### VS Code ###
 .vscode/
 
+### Secrets ###
+src/main/resources/application.yml
+
 ### AI Tools ###
 .claude/
 .cursor/
 .antigravity/
 *.claude.log
 *.cursor.log
+CLAUDE.md

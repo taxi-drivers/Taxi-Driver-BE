@@ -2,8 +2,13 @@ package com.driving.backend.entity;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.FetchType;
 import jakarta.persistence.Id;
-import jakarta.persistence.Lob;
+import jakarta.persistence.Index;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
+import jakarta.persistence.PrePersist;
+import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -13,11 +18,12 @@ import lombok.Setter;
 
 import java.time.LocalDateTime;
 
-/**
- * Defines a domain model mapped to a database table.
- */
 @Entity
-@Table(name = "road_segments")
+@Table(name = "road_segments", indexes = {
+        @Index(name = "idx_level", columnList = "level"),
+        @Index(name = "idx_level_rule_id", columnList = "level_rule_id"),
+        @Index(name = "idx_highway", columnList = "highway")
+})
 @Getter
 @Setter
 @NoArgsConstructor
@@ -26,13 +32,13 @@ import java.time.LocalDateTime;
 public class RoadSegment {
 
     @Id
-    @Column(name = "segment_id")
+    @Column(name = "segment_id", length = 50)
     private String segmentId;
 
-    @Column(name = "name")
+    @Column(length = 120)
     private String name;
 
-    @Column(name = "highway")
+    @Column(length = 30)
     private String highway;
 
     @Column(name = "start_lat", nullable = false)
@@ -56,13 +62,13 @@ public class RoadSegment {
     @Column(name = "num_points")
     private Integer numPoints;
 
-    @Column(name = "coordinates_json", nullable = false, columnDefinition = "json")
+    @Column(name = "coordinates_json", nullable = false, columnDefinition = "JSON")
     private String coordinatesJson;
 
     @Column(name = "total_score", nullable = false)
     private Double totalScore;
 
-    @Column(name = "level_text")
+    @Column(name = "level_text", length = 20)
     private String levelText;
 
     @Column(name = "accident_rate_score", nullable = false)
@@ -80,20 +86,20 @@ public class RoadSegment {
     @Column(name = "traffic_volume_score", nullable = false)
     private Double trafficVolumeScore;
 
-    @Column(name = "explanation", length = 300)
+    @Column(length = 300)
     private String explanation;
 
-    @Lob
     @Column(name = "detail_description", columnDefinition = "TEXT")
     private String detailDescription;
 
-    @Column(name = "evidence_json", columnDefinition = "json")
+    @Column(name = "evidence_json", columnDefinition = "JSON")
     private String evidenceJson;
 
-    @Column(name = "level_rule_id", nullable = false)
-    private Long levelRuleId;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "level_rule_id", nullable = false)
+    private LevelRule levelRule;
 
-    @Column(name = "level", nullable = false)
+    @Column(nullable = false)
     private Integer level;
 
     @Column(name = "level_score")
@@ -102,10 +108,19 @@ public class RoadSegment {
     @Column(name = "computed_at", nullable = false)
     private LocalDateTime computedAt;
 
-    @Column(name = "created_at", nullable = false)
+    @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
-}
 
+    @PrePersist
+    void prePersist() {
+        this.createdAt = LocalDateTime.now();
+    }
+
+    @PreUpdate
+    void preUpdate() {
+        this.updatedAt = LocalDateTime.now();
+    }
+}

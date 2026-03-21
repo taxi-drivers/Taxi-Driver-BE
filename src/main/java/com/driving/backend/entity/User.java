@@ -17,9 +17,6 @@ import lombok.Setter;
 
 import java.time.LocalDateTime;
 
-/**
- * Defines a domain model mapped to a database table.
- */
 @Entity
 @Table(name = "users")
 @Getter
@@ -34,19 +31,19 @@ public class User {
     @Column(name = "user_id")
     private Long userId;
 
-    @Column(nullable = false, unique = true)
+    @Column(nullable = false, unique = true, length = 255)
     private String email;
 
-    @Column(name = "nickname")
+    @Column(length = 50)
     private String nickname;
 
-    @Column(name = "skill_level", nullable = false)
+    @Column(name = "skill_level")
     private Integer skillLevel;
 
     @Column(name = "vulnerability_type_id")
     private Integer vulnerabilityTypeId;
 
-    @Column(name = "created_at", nullable = false)
+    @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
     @Column(name = "updated_at")
@@ -56,15 +53,14 @@ public class User {
     private String passwordHash;
 
     @PrePersist
-    protected void onCreate() {
+    void prePersist() {
         LocalDateTime now = LocalDateTime.now();
-        createdAt = now;
-        updatedAt = now;
+        this.createdAt = now;
+        this.updatedAt = now;
     }
 
     @PreUpdate
-    protected void onUpdate() {
-        updatedAt = LocalDateTime.now();
+    void preUpdate() {
+        this.updatedAt = LocalDateTime.now();
     }
 }
-

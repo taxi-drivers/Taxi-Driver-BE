@@ -2,8 +2,6 @@ package com.driving.backend.entity;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
@@ -14,9 +12,6 @@ import lombok.Setter;
 
 import java.time.LocalDateTime;
 
-/**
- * Defines a domain model mapped to a database table.
- */
 @Entity
 @Table(name = "level_rule")
 @Getter
@@ -27,30 +22,29 @@ import java.time.LocalDateTime;
 public class LevelRule {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "level_rule_id")
     private Long levelRuleId;
 
-    @Column(name = "version", nullable = false, unique = true)
+    @Column(nullable = false, unique = true, length = 30)
     private String version;
 
-    @Column(name = "name", nullable = false)
+    @Column(nullable = false, length = 80)
     private String name;
 
     @Column(name = "w_accident_rate", nullable = false)
-    private Double weightAccidentRate;
+    private Double wAccidentRate;
 
     @Column(name = "w_road_shape", nullable = false)
-    private Double weightRoadShape;
+    private Double wRoadShape;
 
     @Column(name = "w_road_scale", nullable = false)
-    private Double weightRoadScale;
+    private Double wRoadScale;
 
     @Column(name = "w_intersection", nullable = false)
-    private Double weightIntersection;
+    private Double wIntersection;
 
     @Column(name = "w_traffic_volume", nullable = false)
-    private Double weightTrafficVolume;
+    private Double wTrafficVolume;
 
     @Column(name = "level1_max", nullable = false)
     private Double level1Max;
@@ -61,7 +55,6 @@ public class LevelRule {
     @Column(name = "is_active", nullable = false)
     private Boolean isActive;
 
-    @Column(name = "created_at", nullable = false)
+    @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 }
-

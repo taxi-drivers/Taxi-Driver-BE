@@ -84,7 +84,7 @@ public class RoadSegment {
     private String explanation;
 
     @Lob
-    @Column(name = "detail_description")
+    @Column(name = "detail_description", columnDefinition = "TEXT")
     private String detailDescription;
 
     @Column(name = "evidence_json", columnDefinition = "json")

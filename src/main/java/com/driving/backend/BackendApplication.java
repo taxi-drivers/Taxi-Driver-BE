@@ -3,6 +3,9 @@ package com.driving.backend;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 
+/**
+ * Provides the Spring Boot application entry point.
+ */
 @SpringBootApplication
 public class BackendApplication {
 
@@ -11,3 +14,4 @@ public class BackendApplication {
     }
 
 }
+

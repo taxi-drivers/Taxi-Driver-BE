@@ -2,6 +2,9 @@ package com.driving.backend.service;
 
 import com.driving.backend.dto.user.SubmitSurveyRequest;
 import com.driving.backend.dto.user.SubmitSurveyResponse;
+import com.driving.backend.dto.user.SurveyQuestionOptionResponse;
+import com.driving.backend.dto.user.SurveyQuestionResponse;
+import com.driving.backend.dto.user.SurveyQuestionsResponse;
 import com.driving.backend.entity.User;
 import com.driving.backend.entity.UserVulnerabilityMap;
 import com.driving.backend.exception.InvalidRequestException;
@@ -15,8 +18,10 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -26,6 +31,13 @@ import java.util.Set;
 public class UserSurveyService {
 
     private static final String BEARER_PREFIX = "Bearer ";
+    private static final List<SurveyQuestionOptionResponse> SURVEY_OPTIONS = List.of(
+            new SurveyQuestionOptionResponse(1, "전혀 아니다"),
+            new SurveyQuestionOptionResponse(2, "그렇지 않다"),
+            new SurveyQuestionOptionResponse(3, "보통이다"),
+            new SurveyQuestionOptionResponse(4, "그렇다"),
+            new SurveyQuestionOptionResponse(5, "매우 그렇다")
+    );
 
     private final JwtTokenService jwtTokenService;
     private final UserRepository userRepository;
@@ -44,26 +56,36 @@ public class UserSurveyService {
         this.vulnerabilityTypeRepository = vulnerabilityTypeRepository;
     }
 
+    public SurveyQuestionsResponse getSurveyQuestions() {
+        List<SurveyQuestionResponse> questions = SurveyScoringSupport.questions().stream()
+                .map(question -> new SurveyQuestionResponse(
+                        question.code(),
+                        question.category(),
+                        question.prompt(),
+                        question.reverseScored(),
+                        SURVEY_OPTIONS
+                ))
+                .toList();
+
+        return new SurveyQuestionsResponse(SurveyScoringSupport.SURVEY_VERSION, questions);
+    }
+
     @Transactional
     public SubmitSurveyResponse submitSurvey(String authorizationHeader, SubmitSurveyRequest request) {
         Long userId = extractUserId(authorizationHeader);
 
-        validateRequest(request);
-
-        List<Integer> normalizedVulnerabilityIds = normalizeVulnerabilityIds(request.vulnerabilityTypeIds());
-        validateVulnerabilityTypeIds(normalizedVulnerabilityIds);
-        validatePrimaryVulnerabilityTypeId(request.primaryVulnerabilityTypeId(), normalizedVulnerabilityIds);
+        SurveySubmissionPayload payload = resolveSubmissionPayload(request);
 
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new UserNotFoundException("User not found"));
 
-        user.setSkillLevel(request.skillLevel());
-        user.setVulnerabilityTypeId(request.primaryVulnerabilityTypeId());
+        user.setSkillLevel(payload.skillLevel());
+        user.setVulnerabilityTypeId(payload.primaryVulnerabilityTypeId());
         User savedUser = userRepository.save(user);
 
         userVulnerabilityMapRepository.deleteByUserId(userId);
 
-        List<UserVulnerabilityMap> mappings = normalizedVulnerabilityIds.stream()
+        List<UserVulnerabilityMap> mappings = payload.vulnerabilityTypeIds().stream()
                 .map(vulnerabilityId -> UserVulnerabilityMap.builder()
                         .userId(userId)
                         .vulnerabilityTypeId(vulnerabilityId)
@@ -78,13 +100,66 @@ public class UserSurveyService {
         return new SubmitSurveyResponse(
                 savedUser.getUserId(),
                 savedUser.getSkillLevel(),
-                normalizedVulnerabilityIds,
+                payload.vulnerabilityTypeIds(),
                 savedUser.getVulnerabilityTypeId(),
                 savedUser.getUpdatedAt()
         );
     }
 
-    private void validateRequest(SubmitSurveyRequest request) {
+    private SurveySubmissionPayload resolveSubmissionPayload(SubmitSurveyRequest request) {
+        if (request != null && request.answers() != null && !request.answers().isEmpty()) {
+            return buildPayloadFromAnswers(request.answers());
+        }
+
+        validateLegacyRequest(request);
+
+        List<Integer> normalizedVulnerabilityIds = normalizeVulnerabilityIds(request.vulnerabilityTypeIds());
+        validateVulnerabilityTypeIds(normalizedVulnerabilityIds);
+        validatePrimaryVulnerabilityTypeId(request.primaryVulnerabilityTypeId(), normalizedVulnerabilityIds);
+
+        return new SurveySubmissionPayload(
+                request.skillLevel(),
+                normalizedVulnerabilityIds,
+                request.primaryVulnerabilityTypeId()
+        );
+    }
+
+    private SurveySubmissionPayload buildPayloadFromAnswers(Map<String, Integer> answers) {
+        SurveyScoringSupport.SurveyEvaluation evaluation = SurveyScoringSupport.evaluate(answers);
+        Map<String, Integer> vulnerabilityIdByCode = loadVulnerabilityIdsByCode(evaluation.vulnerabilityCodes(), evaluation.primaryVulnerabilityCode());
+
+        List<Integer> vulnerabilityTypeIds = evaluation.vulnerabilityCodes().stream()
+                .map(code -> vulnerabilityIdByCode.get(code))
+                .toList();
+
+        Integer primaryVulnerabilityTypeId = evaluation.primaryVulnerabilityCode() == null
+                ? null
+                : vulnerabilityIdByCode.get(evaluation.primaryVulnerabilityCode());
+
+        return new SurveySubmissionPayload(
+                evaluation.skillLevel(),
+                vulnerabilityTypeIds,
+                primaryVulnerabilityTypeId
+        );
+    }
+
+    private Map<String, Integer> loadVulnerabilityIdsByCode(List<String> vulnerabilityCodes, String primaryVulnerabilityCode) {
+        Set<String> codes = new LinkedHashSet<>(vulnerabilityCodes);
+        if (primaryVulnerabilityCode != null) {
+            codes.add(primaryVulnerabilityCode);
+        }
+
+        Map<String, Integer> resolved = new LinkedHashMap<>();
+        for (String code : codes) {
+            Integer vulnerabilityTypeId = vulnerabilityTypeRepository.findByCode(code)
+                    .map(type -> type.getVulnerabilityTypeId())
+                    .orElseThrow(() -> new InvalidRequestException("Survey vulnerability type is not configured"));
+            resolved.put(code, vulnerabilityTypeId);
+        }
+        return resolved;
+    }
+
+    private void validateLegacyRequest(SubmitSurveyRequest request) {
         if (request == null || request.skillLevel() == null || request.vulnerabilityTypeIds() == null) {
             throw new InvalidRequestException("Invalid request body");
         }
@@ -138,6 +213,13 @@ public class UserSurveyService {
         }
 
         return jwtTokenService.extractUserId(token);
+    }
+
+    private record SurveySubmissionPayload(
+            Integer skillLevel,
+            List<Integer> vulnerabilityTypeIds,
+            Integer primaryVulnerabilityTypeId
+    ) {
     }
 }
 

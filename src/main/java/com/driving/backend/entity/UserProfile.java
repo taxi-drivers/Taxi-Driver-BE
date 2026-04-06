@@ -8,6 +8,7 @@ import java.time.LocalDateTime;
 @Entity
 @Table(name = "user_profile")
 @Getter
+@Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder

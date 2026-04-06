@@ -12,7 +12,7 @@ public record SubmitSurveyRequest(
     @JsonProperty("skill_level") Integer skillLevel,
     @JsonProperty("vulnerability_type_ids") List<Integer> vulnerabilityTypeIds,
     @JsonProperty("primary_vulnerability_type_id") Integer primaryVulnerabilityTypeId,
-    @JsonProperty("answers") Map<String, Object> answers,
+    @JsonProperty("answers") Map<String, Integer> answers,
     @JsonProperty("client_version") String clientVersion
 ) {
 }

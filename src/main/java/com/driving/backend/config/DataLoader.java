@@ -1,7 +1,11 @@
 package com.driving.backend.config;
 
 import com.driving.backend.entity.*;
+import com.driving.backend.entity.GraphNode;
+import com.driving.backend.entity.GraphEdge;
 import com.driving.backend.repository.*;
+import com.driving.backend.repository.GraphNodeRepository;
+import com.driving.backend.repository.GraphEdgeRepository;
 import com.opencsv.CSVReader;
 import com.opencsv.CSVReaderBuilder;
 import lombok.RequiredArgsConstructor;
@@ -36,6 +40,9 @@ public class DataLoader implements CommandLineRunner {
     private final SegmentVulnerabilityMapRepository segmentVulnerabilityMapRepository;
     private final UserRepository userRepository;
     private final UserProfileRepository userProfileRepository;
+    private final GraphNodeRepository graphNodeRepository;
+    private final GraphEdgeRepository graphEdgeRepository;
+    private final com.driving.backend.service.GraphService graphService;
 
     private static final DateTimeFormatter DT_FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
     private static final int BATCH_SIZE = 500;
@@ -49,7 +56,12 @@ public class DataLoader implements CommandLineRunner {
         loadLevelRules();
         loadRoadSegments();
         loadSegmentVulnerabilityMaps();
+        loadGraphNodes();
+        loadGraphEdges();
         loadMockUser();
+
+        // 그래프 데이터 임포트 완료 후 인메모리 그래프 구축
+        graphService.buildGraph();
 
         log.info("========== DataLoader 완료 ==========");
     }
@@ -277,7 +289,107 @@ public class DataLoader implements CommandLineRunner {
         log.info("[OK] segment_vulnerability_map: 총 {}건 임포트", total);
     }
 
-    // ── 5. mock user (1건) ──
+    // ── 5. graph_nodes (8,938건) ──
+
+    private void loadGraphNodes() throws Exception {
+        if (graphNodeRepository.count() > 0) {
+            log.info("[SKIP] graph_nodes: 이미 {}건 존재", graphNodeRepository.count());
+            return;
+        }
+
+        List<String[]> rows = readCsv("data/graph_nodes.csv");
+        List<GraphNode> batch = new ArrayList<>();
+        int total = 0;
+
+        for (String[] row : rows) {
+            // row: node_id, lat, lon
+            batch.add(GraphNode.builder()
+                    .nodeId(parseLong(row[0]))
+                    .lat(parseDouble(row[1]))
+                    .lon(parseDouble(row[2]))
+                    .build());
+
+            if (batch.size() >= BATCH_SIZE) {
+                graphNodeRepository.saveAll(batch);
+                total += batch.size();
+                batch.clear();
+            }
+        }
+
+        if (!batch.isEmpty()) {
+            graphNodeRepository.saveAll(batch);
+            total += batch.size();
+        }
+
+        log.info("[OK] graph_nodes: 총 {}건 임포트", total);
+    }
+
+    // ── 6. graph_edges (23,471건) ──
+
+    private void loadGraphEdges() throws Exception {
+        if (graphEdgeRepository.count() > 0) {
+            log.info("[SKIP] graph_edges: 이미 {}건 존재", graphEdgeRepository.count());
+            return;
+        }
+
+        List<String[]> rows = readCsv("data/graph_edges.csv");
+        List<GraphEdge> batch = new ArrayList<>();
+        int total = 0;
+
+        for (String[] row : rows) {
+            // row: edge_id,from_node,to_node,edge_key,name,highway,length_m,oneway,
+            //      center_lat,center_lon,coordinates_json,
+            //      total_score,accident_rate_score,road_shape_score,road_scale_score,
+            //      intersection_score,traffic_volume_score,matched_segment_id,match_distance_m
+            String name = row[4];
+            if ("이름없음".equals(name) || name.isEmpty()) {
+                name = null;
+            }
+
+            String matchedSegId = row.length > 17 ? row[17] : null;
+            if (matchedSegId != null && matchedSegId.isEmpty()) {
+                matchedSegId = null;
+            }
+
+            batch.add(GraphEdge.builder()
+                    .edgeId(row[0])
+                    .fromNode(parseLong(row[1]))
+                    .toNode(parseLong(row[2]))
+                    .edgeKey(parseInt(row[3]))
+                    .name(name)
+                    .highway(row[5])
+                    .lengthM(parseDouble(row[6]))
+                    .oneway("True".equalsIgnoreCase(row[7]))
+                    .centerLat(parseDouble(row[8]))
+                    .centerLon(parseDouble(row[9]))
+                    .coordinatesJson(row[10])
+                    .totalScore(parseDouble(row[11]))
+                    .accidentRateScore(parseDouble(row[12]))
+                    .roadShapeScore(parseDouble(row[13]))
+                    .roadScaleScore(parseDouble(row[14]))
+                    .intersectionScore(parseDouble(row[15]))
+                    .trafficVolumeScore(parseDouble(row[16]))
+                    .matchedSegmentId(matchedSegId)
+                    .matchDistanceM(row.length > 18 ? parseDouble(row[18]) : null)
+                    .build());
+
+            if (batch.size() >= BATCH_SIZE) {
+                graphEdgeRepository.saveAll(batch);
+                total += batch.size();
+                batch.clear();
+                log.info("[진행] graph_edges: {}건 저장 완료", total);
+            }
+        }
+
+        if (!batch.isEmpty()) {
+            graphEdgeRepository.saveAll(batch);
+            total += batch.size();
+        }
+
+        log.info("[OK] graph_edges: 총 {}건 임포트", total);
+    }
+
+    // ── 7. mock user (1건) ──
 
     private void loadMockUser() {
         if (userRepository.count() > 0) {

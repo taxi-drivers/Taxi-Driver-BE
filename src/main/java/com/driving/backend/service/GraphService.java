@@ -174,11 +174,23 @@ public class GraphService {
 
     /**
      * 거리만 사용하는 가중치 (최단 거리 경로).
+     * service 도로(주차장 진입로/골목)는 통과 경로로 부적절하므로 페널티 적용.
      */
     private void applyDistanceOnlyWeights() {
         for (Map.Entry<WeightedRoadEdge, GraphEdge> entry : edgeMetadata.entrySet()) {
-            graph.setEdgeWeight(entry.getKey(), entry.getValue().getLengthM());
+            GraphEdge edge = entry.getValue();
+            double cost = edge.getLengthM() * getHighwayPenalty(edge.getHighway());
+            graph.setEdgeWeight(entry.getKey(), cost);
         }
+    }
+
+    /**
+     * highway 타입별 cost 페널티.
+     * service: 주차장 진입로/건물 골목 → 통과 경로로 부적절. 다른 도로 있으면 회피.
+     */
+    private double getHighwayPenalty(String highway) {
+        if ("service".equals(highway)) return 3.0;
+        return 1.0;
     }
 
     /**
@@ -229,6 +241,7 @@ public class GraphService {
             }
 
             double cost = distance * (1.0 + ALPHA * normalizedDiff + BETA * vulnPenalty);
+            cost *= getHighwayPenalty(highway);
             graph.setEdgeWeight(entry.getKey(), cost);
         }
     }

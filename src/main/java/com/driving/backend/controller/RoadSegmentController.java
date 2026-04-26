@@ -2,6 +2,8 @@ package com.driving.backend.controller;
 
 import com.driving.backend.dto.*;
 import com.driving.backend.service.RoadSegmentService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -24,6 +26,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/segments")
 @RequiredArgsConstructor
+@Tag(name = "Road Segment", description = "도로 세그먼트 상세 조회 API")
 public class RoadSegmentController {
 
     private final RoadSegmentService roadSegmentService;
@@ -41,6 +44,7 @@ public class RoadSegmentController {
      * @return 해당 bounds 내 세그먼트 요약 목록 (id, 좌표, level, totalScore)
      */
     @GetMapping
+    @Operation(summary = "bounds 기반 세그먼트 조회", description = "지도의 사각 bounds 안에 있는 세그먼트를 조회합니다.")
     public ResponseEntity<List<SegmentSummaryResponse>> getSegmentsByBounds(
             @RequestParam Double minLat,
             @RequestParam Double maxLat,
@@ -60,6 +64,7 @@ public class RoadSegmentController {
      * @return 전체 필드 (좌표, 난이도, 설명, polyline 등)
      */
     @GetMapping("/{id}")
+    @Operation(summary = "세그먼트 상세 조회", description = "특정 세그먼트의 상세 정보를 반환합니다.")
     public ResponseEntity<SegmentDetailResponse> getSegmentById(@PathVariable String id) {
         return ResponseEntity.ok(roadSegmentService.getSegmentById(id));
     }
@@ -74,6 +79,7 @@ public class RoadSegmentController {
      * @return 툴팁 표시용 요약 정보
      */
     @GetMapping("/{id}/tooltip")
+    @Operation(summary = "세그먼트 툴팁 조회", description = "지도 hover 시 사용하는 요약 정보를 조회합니다.")
     public ResponseEntity<SegmentTooltipResponse> getTooltip(@PathVariable String id) {
         return ResponseEntity.ok(roadSegmentService.getTooltip(id));
     }
@@ -88,6 +94,7 @@ public class RoadSegmentController {
      * @return level(1~3), levelText, totalScore(0~100)
      */
     @GetMapping("/{id}/difficulty")
+    @Operation(summary = "세그먼트 난이도 조회", description = "세그먼트의 level, levelText, totalScore를 조회합니다.")
     public ResponseEntity<SegmentDifficultyResponse> getDifficulty(@PathVariable String id) {
         return ResponseEntity.ok(roadSegmentService.getDifficulty(id));
     }
@@ -102,6 +109,7 @@ public class RoadSegmentController {
      * @return totalScore + 5개 세부 점수 (accidentRate, roadShape, roadScale, intersection, trafficVolume)
      */
     @GetMapping("/{id}/score-detail")
+    @Operation(summary = "난이도 구성요소 조회", description = "난이도 산정에 사용된 세부 점수를 조회합니다.")
     public ResponseEntity<SegmentScoreDetailResponse> getScoreDetail(@PathVariable String id) {
         return ResponseEntity.ok(roadSegmentService.getScoreDetail(id));
     }

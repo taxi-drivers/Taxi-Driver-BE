@@ -175,11 +175,14 @@ public class GraphService {
     /**
      * 거리만 사용하는 가중치 (최단 거리 경로).
      * service 도로(주차장 진입로/골목)는 통과 경로로 부적절하므로 페널티 적용.
+     * 경사도(slope)도 기본 가중치에 포함 — 가파른 도로는 모든 운전자에게 부담.
      */
     private void applyDistanceOnlyWeights() {
         for (Map.Entry<WeightedRoadEdge, GraphEdge> entry : edgeMetadata.entrySet()) {
             GraphEdge edge = entry.getValue();
-            double cost = edge.getLengthM() * getHighwayPenalty(edge.getHighway());
+            double cost = edge.getLengthM()
+                    * getHighwayPenalty(edge.getHighway())
+                    * getSlopeMultiplier(edge.getSlope());
             graph.setEdgeWeight(entry.getKey(), cost);
         }
     }
@@ -191,6 +194,25 @@ public class GraphService {
     private double getHighwayPenalty(String highway) {
         if ("service".equals(highway)) return 3.0;
         return 1.0;
+    }
+
+    /**
+     * 경사도(slope) cost 배수.
+     *
+     * SRTM 30m DEM 기반 slope는 도시 지역(빌딩 밀집/짧은 엣지)에서
+     * 노이즈로 ±100% 같은 비현실적 값이 나올 수 있으므로 ±15%로 clamp.
+     * (실제 도로 최대 경사 ~12% 기준)
+     *
+     * 부호 무관: 오르막/내리막 둘 다 초보 운전자에게 부담 (가속/제동 모두 어려움).
+     *
+     * 결과: slope=0%→1.0x, 5%→1.15x, 10%→1.30x, 15%↑→1.45x
+     */
+    private double getSlopeMultiplier(Double slope) {
+        if (slope == null) return 1.0;
+        final double SLOPE_CLAMP = 0.15;
+        final double SLOPE_COEFFICIENT = 3.0;
+        double clamped = Math.min(Math.abs(slope), SLOPE_CLAMP);
+        return 1.0 + SLOPE_COEFFICIENT * clamped;
     }
 
     /**
@@ -242,6 +264,7 @@ public class GraphService {
 
             double cost = distance * (1.0 + ALPHA * normalizedDiff + BETA * vulnPenalty);
             cost *= getHighwayPenalty(highway);
+            cost *= getSlopeMultiplier(edge.getSlope());
             graph.setEdgeWeight(entry.getKey(), cost);
         }
     }

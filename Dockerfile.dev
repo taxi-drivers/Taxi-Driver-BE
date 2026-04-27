@@ -1,0 +1,24 @@
+# 개발용 Backend Dockerfile (Spring Boot)
+# - JDK 21 (Temurin)
+# - 소스는 host에서 volume mount → 코드 수정 시 컨테이너 재빌드 불필요
+# - gradle bootRun으로 dev 서버 실행 (Spring Boot DevTools 자동 reload 호환)
+FROM eclipse-temurin:21-jdk-alpine
+
+WORKDIR /app
+
+# Gradle wrapper / 의존성 명세는 이미지에 미리 복사 (dependency 캐시 효과)
+COPY gradle/ gradle/
+COPY gradlew gradlew.bat build.gradle settings.gradle ./
+
+# 줄 바꿈 변환 + 실행 권한 (Windows에서 mount 시 종종 필요)
+RUN apk add --no-cache dos2unix && \
+    dos2unix gradlew && \
+    chmod +x gradlew
+
+# 의존성만 미리 다운로드 (build context에 src가 없는 상태에서 실행)
+RUN ./gradlew --no-daemon dependencies > /dev/null 2>&1 || true
+
+EXPOSE 8080
+
+# bootRun으로 실행. 소스는 docker compose에서 volume mount.
+CMD ["./gradlew", "bootRun", "--no-daemon"]

@@ -50,7 +50,6 @@ public class DataLoader implements CommandLineRunner {
     private static final int BATCH_SIZE = 500;
 
     @Override
-    @Transactional
     public void run(String... args) throws Exception {
         log.info("========== DataLoader 시작 ==========");
 

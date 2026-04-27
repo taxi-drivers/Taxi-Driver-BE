@@ -1,7 +1,19 @@
 package com.driving.backend.entity;
 
-import jakarta.persistence.*;
-import lombok.*;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.Id;
+import jakarta.persistence.Index;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
+import jakarta.persistence.PrePersist;
+import jakarta.persistence.PreUpdate;
+import jakarta.persistence.Table;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
 
@@ -20,8 +32,6 @@ public class RoadSegment {
     @Id
     @Column(name = "segment_id", length = 50)
     private String segmentId;
-
-    // ── 지도/도로 기본 정보 ──
 
     @Column(length = 120)
     private String name;
@@ -53,8 +63,6 @@ public class RoadSegment {
     @Column(name = "coordinates_json", nullable = false, columnDefinition = "JSON")
     private String coordinatesJson;
 
-    // ── 난이도 점수 (구 segment_score 통합) ──
-
     @Column(name = "total_score", nullable = false)
     private Double totalScore;
 
@@ -76,20 +84,14 @@ public class RoadSegment {
     @Column(name = "traffic_volume_score", nullable = false)
     private Double trafficVolumeScore;
 
-    // ── Hover/Click 설명 ──
-
     @Column(length = 300)
     private String explanation;
 
     @Column(name = "detail_description", columnDefinition = "TEXT")
     private String detailDescription;
 
-    // ── 원천 근거 (향후 사용) ──
-
     @Column(name = "evidence_json", columnDefinition = "JSON")
     private String evidenceJson;
-
-    // ── Level 결과 (구 segment_level 통합) ──
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "level_rule_id", nullable = false)
@@ -100,8 +102,6 @@ public class RoadSegment {
 
     @Column(name = "level_score")
     private Double levelScore;
-
-    // ── 시각 ──
 
     @Column(name = "computed_at", nullable = false)
     private LocalDateTime computedAt;

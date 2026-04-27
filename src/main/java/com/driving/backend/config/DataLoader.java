@@ -57,7 +57,9 @@ public class DataLoader implements CommandLineRunner {
         loadRoadSegments();
         loadSegmentVulnerabilityMaps();
         loadGraphNodes();
+        loadNodeElevations();
         loadGraphEdges();
+        loadEdgeSlopes();
         loadMockUser();
 
         // 그래프 데이터 임포트 완료 후 인메모리 그래프 구축
@@ -387,6 +389,84 @@ public class DataLoader implements CommandLineRunner {
         }
 
         log.info("[OK] graph_edges: 총 {}건 임포트", total);
+    }
+
+    // ── 5-1. graph_nodes elevation UPDATE (8,801건, 한강 다리 위 138개는 NULL) ──
+
+    private void loadNodeElevations() throws Exception {
+        Map<Long, Double> elevationMap = new HashMap<>();
+        for (String[] row : readCsv("data/node_elevations.csv")) {
+            if (row.length < 2 || row[1].isEmpty()) continue;
+            elevationMap.put(parseLong(row[0]), Double.parseDouble(row[1]));
+        }
+
+        List<GraphNode> nodes = graphNodeRepository.findAll();
+        int alreadyHas = 0;
+        int updated = 0;
+        List<GraphNode> batch = new ArrayList<>();
+
+        for (GraphNode node : nodes) {
+            if (node.getElevation() != null) {
+                alreadyHas++;
+                continue;
+            }
+            Double elev = elevationMap.get(node.getNodeId());
+            if (elev != null) {
+                node.setElevation(elev);
+                batch.add(node);
+                updated++;
+                if (batch.size() >= BATCH_SIZE) {
+                    graphNodeRepository.saveAll(batch);
+                    batch.clear();
+                }
+            }
+        }
+        if (!batch.isEmpty()) graphNodeRepository.saveAll(batch);
+
+        if (updated == 0) {
+            log.info("[SKIP] node_elevations: 이미 {}/{} 노드에 elevation 존재", alreadyHas, nodes.size());
+        } else {
+            log.info("[OK] node_elevations: {}건 갱신 (기존 {}건, 한강 다리 위 NULL 제외)", updated, alreadyHas);
+        }
+    }
+
+    // ── 6-1. graph_edges slope UPDATE (23,138건, 한강 다리 위 334개는 NULL) ──
+
+    private void loadEdgeSlopes() throws Exception {
+        Map<String, Double> slopeMap = new HashMap<>();
+        for (String[] row : readCsv("data/edge_slopes.csv")) {
+            if (row.length < 2 || row[1].isEmpty()) continue;
+            slopeMap.put(row[0], Double.parseDouble(row[1]));
+        }
+
+        List<GraphEdge> edges = graphEdgeRepository.findAll();
+        int alreadyHas = 0;
+        int updated = 0;
+        List<GraphEdge> batch = new ArrayList<>();
+
+        for (GraphEdge edge : edges) {
+            if (edge.getSlope() != null) {
+                alreadyHas++;
+                continue;
+            }
+            Double s = slopeMap.get(edge.getEdgeId());
+            if (s != null) {
+                edge.setSlope(s);
+                batch.add(edge);
+                updated++;
+                if (batch.size() >= BATCH_SIZE) {
+                    graphEdgeRepository.saveAll(batch);
+                    batch.clear();
+                }
+            }
+        }
+        if (!batch.isEmpty()) graphEdgeRepository.saveAll(batch);
+
+        if (updated == 0) {
+            log.info("[SKIP] edge_slopes: 이미 {}/{} 엣지에 slope 존재", alreadyHas, edges.size());
+        } else {
+            log.info("[OK] edge_slopes: {}건 갱신 (기존 {}건, 한강 다리 위 NULL 제외)", updated, alreadyHas);
+        }
     }
 
     // ── 7. mock user (1건) ──

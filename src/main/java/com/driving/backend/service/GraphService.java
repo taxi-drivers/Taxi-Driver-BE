@@ -293,6 +293,12 @@ public class GraphService {
                     .lengthM(meta.getLengthM())
                     .difficulty(diff)
                     .coordinatesJson(meta.getCoordinatesJson())
+                    .accidentRateScore(meta.getAccidentRateScore())
+                    .roadShapeScore(meta.getRoadShapeScore())
+                    .roadScaleScore(meta.getRoadScaleScore())
+                    .intersectionScore(meta.getIntersectionScore())
+                    .trafficVolumeScore(meta.getTrafficVolumeScore())
+                    .slope(meta.getSlope())
                     .build());
         }
 

@@ -73,4 +73,16 @@ public class GraphEdge {
 
     @Column(name = "match_distance_m")
     private Double matchDistanceM;
+
+    /**
+     * 경사도 (signed gradient, fraction 단위).
+     * = (toNode.elevation − fromNode.elevation) / lengthM
+     * 양수: 진행방향 오르막, 음수: 내리막. 예: 0.05 = +5% 경사.
+     */
+    @Column
+    private Double slope;
+
+    public void setSlope(Double slope) {
+        this.slope = slope;
+    }
 }

@@ -20,4 +20,11 @@ public class GraphNode {
 
     @Column(nullable = false)
     private Double lon;
+
+    @Column
+    private Double elevation;
+
+    public void setElevation(Double elevation) {
+        this.elevation = elevation;
+    }
 }

@@ -9,6 +9,7 @@ import java.util.List;
  * Defines request and response payload structures for API boundaries.
  */
 public record SubmitSurveyResponse(
+    @JsonProperty("survey_history_id") Long surveyHistoryId,
     @JsonProperty("user_id") Long userId,
     @JsonProperty("skill_level") Integer skillLevel,
     @JsonProperty("vulnerability_type_ids") List<Integer> vulnerabilityTypeIds,

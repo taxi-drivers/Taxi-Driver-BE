@@ -44,11 +44,17 @@ public class RouteController {
 
         @SuppressWarnings("unchecked")
         List<String> vulnerabilities = (List<String>) request.get("vulnerabilities");
+        Integer skillLevel = request.get("skillLevel") instanceof Number skillLevelNumber
+                ? skillLevelNumber.intValue()
+                : null;
         if ((vulnerabilities == null || vulnerabilities.isEmpty()) && authorizationHeader != null) {
-            vulnerabilities = userProfileService.getMyVulnerabilityCodes(authorizationHeader);
+            UserProfileService.DrivingPreference preference =
+                    userProfileService.getMyDrivingPreference(authorizationHeader);
+            vulnerabilities = preference.vulnerabilityCodes();
+            skillLevel = preference.skillLevel();
         }
 
-        RouteResult result = graphService.findRoute(startLat, startLon, endLat, endLon, vulnerabilities);
+        RouteResult result = graphService.findRoute(startLat, startLon, endLat, endLon, vulnerabilities, skillLevel);
         return ResponseEntity.ok(result);
     }
 

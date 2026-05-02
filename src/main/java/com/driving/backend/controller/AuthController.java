@@ -3,6 +3,7 @@ package com.driving.backend.controller;
 import com.driving.backend.dto.auth.LoginRequest;
 import com.driving.backend.dto.auth.LoginResponse;
 import com.driving.backend.dto.auth.LogoutResponse;
+import com.driving.backend.dto.auth.SignupRequest;
 import com.driving.backend.service.AuthService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -31,6 +32,12 @@ public class AuthController {
     @Operation(summary = "로그인", description = "테스트 유저로 로그인하고 JWT 토큰을 발급합니다.")
     public ResponseEntity<LoginResponse> login(@RequestBody(required = false) LoginRequest request) {
         return ResponseEntity.ok(authService.login(request));
+    }
+
+    @PostMapping("/signup")
+    @Operation(summary = "Sign up", description = "Create a user account and issue JWT tokens.")
+    public ResponseEntity<LoginResponse> signup(@RequestBody(required = false) SignupRequest request) {
+        return ResponseEntity.ok(authService.signup(request));
     }
 
     @PostMapping("/logout")

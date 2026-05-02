@@ -2,18 +2,25 @@ package com.driving.backend.service;
 
 import com.driving.backend.dto.user.SubmitSurveyRequest;
 import com.driving.backend.dto.user.SubmitSurveyResponse;
+import com.driving.backend.dto.user.SurveyHistoryItemResponse;
+import com.driving.backend.dto.user.SurveyHistoryResponse;
 import com.driving.backend.dto.user.SurveyQuestionOptionResponse;
 import com.driving.backend.dto.user.SurveyQuestionResponse;
 import com.driving.backend.dto.user.SurveyQuestionsResponse;
 import com.driving.backend.entity.UserProfile;
+import com.driving.backend.entity.UserSurveyHistory;
 import com.driving.backend.entity.UserVulnerabilityMap;
 import com.driving.backend.entity.VulnerabilityType;
 import com.driving.backend.exception.InvalidRequestException;
 import com.driving.backend.exception.InvalidTokenException;
 import com.driving.backend.exception.UserNotFoundException;
 import com.driving.backend.repository.UserProfileRepository;
+import com.driving.backend.repository.UserSurveyHistoryRepository;
 import com.driving.backend.repository.UserVulnerabilityMapRepository;
 import com.driving.backend.repository.VulnerabilityTypeRepository;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -38,18 +45,24 @@ public class UserSurveyService {
     );
 
     private final JwtTokenService jwtTokenService;
+    private final ObjectMapper objectMapper;
     private final UserProfileRepository userProfileRepository;
+    private final UserSurveyHistoryRepository userSurveyHistoryRepository;
     private final UserVulnerabilityMapRepository userVulnerabilityMapRepository;
     private final VulnerabilityTypeRepository vulnerabilityTypeRepository;
 
     public UserSurveyService(
             JwtTokenService jwtTokenService,
+            ObjectMapper objectMapper,
             UserProfileRepository userProfileRepository,
+            UserSurveyHistoryRepository userSurveyHistoryRepository,
             UserVulnerabilityMapRepository userVulnerabilityMapRepository,
             VulnerabilityTypeRepository vulnerabilityTypeRepository
     ) {
         this.jwtTokenService = jwtTokenService;
+        this.objectMapper = objectMapper;
         this.userProfileRepository = userProfileRepository;
+        this.userSurveyHistoryRepository = userSurveyHistoryRepository;
         this.userVulnerabilityMapRepository = userVulnerabilityMapRepository;
         this.vulnerabilityTypeRepository = vulnerabilityTypeRepository;
     }
@@ -96,13 +109,45 @@ public class UserSurveyService {
             userVulnerabilityMapRepository.saveAll(mappings);
         }
 
+        UserSurveyHistory history = userSurveyHistoryRepository.save(UserSurveyHistory.builder()
+                .user(savedProfile.getUser())
+                .surveyVersion(SurveyScoringSupport.SURVEY_VERSION)
+                .skillLevel(savedProfile.getSkillLevel())
+                .primaryVulnerabilityType(primaryType)
+                .vulnerabilityTypeIdsJson(writeJson(payload.vulnerabilityTypeIds()))
+                .answersJson(request != null && request.answers() != null ? writeJson(request.answers()) : null)
+                .build());
+
         return new SubmitSurveyResponse(
+                history.getSurveyHistoryId(),
                 userId,
                 savedProfile.getSkillLevel(),
                 payload.vulnerabilityTypeIds(),
                 primaryType != null ? primaryType.getVulnerabilityTypeId() : null,
                 savedProfile.getUpdatedAt()
         );
+    }
+
+    @Transactional(readOnly = true)
+    public SurveyHistoryResponse getMySurveyHistory(String authorizationHeader) {
+        Long userId = extractUserId(authorizationHeader);
+        List<SurveyHistoryItemResponse> histories = userSurveyHistoryRepository
+                .findByUserUserIdOrderByCreatedAtDesc(userId)
+                .stream()
+                .map(history -> new SurveyHistoryItemResponse(
+                        history.getSurveyHistoryId(),
+                        history.getSurveyVersion(),
+                        history.getSkillLevel(),
+                        readIntegerList(history.getVulnerabilityTypeIdsJson()),
+                        history.getPrimaryVulnerabilityType() != null
+                                ? history.getPrimaryVulnerabilityType().getVulnerabilityTypeId()
+                                : null,
+                        readAnswerMap(history.getAnswersJson()),
+                        history.getCreatedAt()
+                ))
+                .toList();
+
+        return new SurveyHistoryResponse(userId, histories);
     }
 
     private SurveySubmissionPayload resolveSubmissionPayload(SubmitSurveyRequest request) {
@@ -215,6 +260,40 @@ public class UserSurveyService {
         }
 
         return jwtTokenService.extractUserId(token);
+    }
+
+    private String writeJson(Object value) {
+        try {
+            return objectMapper.writeValueAsString(value);
+        } catch (JsonProcessingException ex) {
+            throw new InvalidRequestException("Invalid request body");
+        }
+    }
+
+    private List<Integer> readIntegerList(String json) {
+        if (!StringUtils.hasText(json)) {
+            return List.of();
+        }
+
+        try {
+            return objectMapper.readValue(json, new TypeReference<>() {
+            });
+        } catch (JsonProcessingException ex) {
+            return List.of();
+        }
+    }
+
+    private Map<String, Integer> readAnswerMap(String json) {
+        if (!StringUtils.hasText(json)) {
+            return Map.of();
+        }
+
+        try {
+            return objectMapper.readValue(json, new TypeReference<>() {
+            });
+        } catch (JsonProcessingException ex) {
+            return Map.of();
+        }
     }
 
     private record SurveySubmissionPayload(

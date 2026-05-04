@@ -2,6 +2,7 @@ package com.driving.backend.controller;
 
 import com.driving.backend.dto.user.SubmitSurveyRequest;
 import com.driving.backend.dto.user.SubmitSurveyResponse;
+import com.driving.backend.dto.user.SurveyHistoryResponse;
 import com.driving.backend.dto.user.UpdateNicknameRequest;
 import com.driving.backend.dto.user.UpdateProfileResponse;
 import com.driving.backend.dto.user.UserProfileResponse;
@@ -53,6 +54,14 @@ public class UserProfileController {
             @RequestHeader(value = "Authorization", required = false) String authorizationHeader
     ) {
         return ResponseEntity.ok(userProfileService.getMyProfile(authorizationHeader));
+    }
+
+    @GetMapping("/survey/history")
+    @Operation(summary = "Survey history", description = "Return the current user's survey submission history.")
+    public ResponseEntity<SurveyHistoryResponse> getMySurveyHistory(
+            @RequestHeader(value = "Authorization", required = false) String authorizationHeader
+    ) {
+        return ResponseEntity.ok(userSurveyService.getMySurveyHistory(authorizationHeader));
     }
 
     @GetMapping("/vulnerabilities")

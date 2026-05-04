@@ -104,6 +104,15 @@ public class UserProfileService {
                 .toList();
     }
 
+    @Transactional(readOnly = true)
+    public DrivingPreference getMyDrivingPreference(String authorizationHeader) {
+        Long userId = extractUserId(authorizationHeader);
+        UserProfile profile = userProfileRepository.findById(userId)
+                .orElseThrow(() -> new UserNotFoundException("User profile not found"));
+
+        return new DrivingPreference(profile.getSkillLevel(), getVulnerabilityCodes(userId));
+    }
+
     @Transactional
     public UpdateProfileResponse updateNickname(String authorizationHeader, UpdateNicknameRequest request) {
         Long userId = extractUserId(authorizationHeader);
@@ -149,6 +158,24 @@ public class UserProfileService {
         return jwtTokenService.extractUserId(token);
     }
 
+    private List<String> getVulnerabilityCodes(Long userId) {
+        List<Integer> vulnerabilityTypeIds = userVulnerabilityMapRepository
+                .findByUserIdOrderByVulnerabilityTypeIdAsc(userId)
+                .stream()
+                .map(UserVulnerabilityMap::getVulnerabilityTypeId)
+                .toList();
+
+        if (vulnerabilityTypeIds.isEmpty()) {
+            return List.of();
+        }
+
+        return vulnerabilityTypeRepository
+                .findByVulnerabilityTypeIdInOrderByVulnerabilityTypeIdAsc(vulnerabilityTypeIds)
+                .stream()
+                .map(VulnerabilityType::getCode)
+                .toList();
+    }
+
     private VulnerabilityTypeDetail toDetail(VulnerabilityType type) {
         return new VulnerabilityTypeDetail(
                 type.getVulnerabilityTypeId(),
@@ -157,5 +184,11 @@ public class UserProfileService {
                 type.getDescription(),
                 type.getIconKey()
         );
+    }
+
+    public record DrivingPreference(
+            Integer skillLevel,
+            List<String> vulnerabilityCodes
+    ) {
     }
 }

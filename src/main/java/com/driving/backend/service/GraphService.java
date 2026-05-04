@@ -129,6 +129,13 @@ public class GraphService {
     public RouteResult findRoute(double startLat, double startLon,
                                   double endLat, double endLon,
                                   List<String> vulnerabilityTypeCodes) {
+        return findRoute(startLat, startLon, endLat, endLon, vulnerabilityTypeCodes, null);
+    }
+
+    public RouteResult findRoute(double startLat, double startLon,
+                                  double endLat, double endLon,
+                                  List<String> vulnerabilityTypeCodes,
+                                  Integer skillLevel) {
         if (graph == null) {
             throw new IllegalStateException("그래프가 구축되지 않았습니다.");
         }
@@ -141,9 +148,10 @@ public class GraphService {
         }
 
         // 난이도 가중치 적용
-        boolean useDifficulty = vulnerabilityTypeCodes != null && !vulnerabilityTypeCodes.isEmpty();
+        boolean useDifficulty = (vulnerabilityTypeCodes != null && !vulnerabilityTypeCodes.isEmpty())
+                || skillLevel != null;
         if (useDifficulty) {
-            applyDifficultyWeights(vulnerabilityTypeCodes);
+            applyDifficultyWeights(vulnerabilityTypeCodes, skillLevel);
         } else {
             applyDistanceOnlyWeights();
         }
@@ -223,11 +231,17 @@ public class GraphService {
      * - α: 기본 난이도 가중치 (0.5)
      * - β: 취약특성 매칭 시 추가 페널티 (1.0)
      */
-    private void applyDifficultyWeights(List<String> vulnerabilityCodes) {
+    private void applyDifficultyWeights(List<String> vulnerabilityCodes, Integer skillLevel) {
         final double ALPHA = 0.5;  // 기본 난이도 영향
         final double BETA = 1.0;   // 취약특성 추가 페널티
 
-        Set<String> vulnSet = new HashSet<>(vulnerabilityCodes);
+        double skillSensitivity = calculateSkillSensitivity(skillLevel);
+        double alpha = 0.25 + (0.75 * skillSensitivity);
+        double beta = 0.8 + (0.7 * skillSensitivity);
+
+        Set<String> vulnSet = vulnerabilityCodes == null
+                ? Set.of()
+                : new HashSet<>(vulnerabilityCodes);
 
         for (Map.Entry<WeightedRoadEdge, GraphEdge> entry : edgeMetadata.entrySet()) {
             GraphEdge edge = entry.getValue();
@@ -262,7 +276,7 @@ public class GraphService {
                 vulnPenalty += 1.0;
             }
 
-            double cost = distance * (1.0 + ALPHA * normalizedDiff + BETA * vulnPenalty);
+            double cost = distance * (1.0 + alpha * normalizedDiff + beta * vulnPenalty);
             cost *= getHighwayPenalty(highway);
             cost *= getSlopeMultiplier(edge.getSlope());
             graph.setEdgeWeight(entry.getKey(), cost);
@@ -326,6 +340,15 @@ public class GraphService {
                 + Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2))
                 * Math.sin(dLon / 2) * Math.sin(dLon / 2);
         return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    }
+
+    private double calculateSkillSensitivity(Integer skillLevel) {
+        if (skillLevel == null) {
+            return 0.5;
+        }
+
+        int clamped = Math.max(0, Math.min(100, skillLevel));
+        return (100.0 - clamped) / 100.0;
     }
 
     public boolean isGraphReady() {

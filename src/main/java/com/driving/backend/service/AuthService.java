@@ -3,6 +3,7 @@ package com.driving.backend.service;
 import com.driving.backend.dto.auth.LoginRequest;
 import com.driving.backend.dto.auth.LoginResponse;
 import com.driving.backend.dto.auth.LogoutResponse;
+import com.driving.backend.dto.auth.SignupRequest;
 import com.driving.backend.entity.User;
 import com.driving.backend.entity.UserProfile;
 import com.driving.backend.exception.InvalidCredentialsException;
@@ -18,6 +19,7 @@ import org.springframework.util.StringUtils;
 public class AuthService {
 
     private static final String BEARER_PREFIX = "Bearer ";
+    private static final int INITIAL_SKILL_LEVEL = 50;
 
     private final UserRepository userRepository;
     private final UserProfileRepository userProfileRepository;
@@ -61,6 +63,44 @@ public class AuthService {
     }
 
     @Transactional
+    public LoginResponse signup(SignupRequest request) {
+        validateSignupRequest(request);
+
+        String email = request.email().trim();
+        if (userRepository.existsByEmail(email)) {
+            throw new InvalidRequestException("Email already exists");
+        }
+
+        User user = User.builder()
+                .email(email)
+                .passwordHash(org.springframework.security.crypto.bcrypt.BCrypt.hashpw(
+                        request.password(),
+                        org.springframework.security.crypto.bcrypt.BCrypt.gensalt()
+                ))
+                .nickname(request.nickname().trim())
+                .build();
+        User savedUser = userRepository.save(user);
+
+        UserProfile profile = UserProfile.builder()
+                .user(savedUser)
+                .skillLevel(INITIAL_SKILL_LEVEL)
+                .build();
+        UserProfile savedProfile = userProfileRepository.save(profile);
+
+        String accessToken = jwtTokenService.createAccessToken(savedUser.getUserId());
+        String refreshToken = jwtTokenService.createRefreshToken(savedUser.getUserId());
+
+        return new LoginResponse(
+                savedUser.getUserId(),
+                savedUser.getNickname(),
+                savedProfile.getSkillLevel(),
+                null,
+                accessToken,
+                refreshToken
+        );
+    }
+
+    @Transactional
     public LogoutResponse logout(String authorizationHeader) {
         if (!StringUtils.hasText(authorizationHeader) || !authorizationHeader.startsWith(BEARER_PREFIX)) {
             throw new InvalidTokenException("Invalid token");
@@ -77,6 +117,19 @@ public class AuthService {
     private void validateRequest(LoginRequest request) {
         if (request == null || !StringUtils.hasText(request.email()) || !StringUtils.hasText(request.password())) {
             throw new InvalidRequestException("Invalid request body");
+        }
+    }
+
+    private void validateSignupRequest(SignupRequest request) {
+        if (request == null
+                || !StringUtils.hasText(request.email())
+                || !StringUtils.hasText(request.password())
+                || !StringUtils.hasText(request.nickname())) {
+            throw new InvalidRequestException("Invalid request body");
+        }
+
+        if (request.password().length() < 4) {
+            throw new InvalidRequestException("Password must be at least 4 characters");
         }
     }
 

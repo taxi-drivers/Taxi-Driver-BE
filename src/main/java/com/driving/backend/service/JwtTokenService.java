@@ -28,11 +28,16 @@ public class JwtTokenService {
     }
 
     public String createAccessToken(Long userId) {
+        return createAccessToken(userId, "USER");
+    }
+
+    public String createAccessToken(Long userId, String role) {
         Instant now = Instant.now();
         Instant exp = now.plus(jwtProperties.accessTokenMinutes(), ChronoUnit.MINUTES);
 
         return Jwts.builder()
                 .claim("user_id", userId)
+                .claim("role", role == null ? "USER" : role)
                 .issuedAt(Date.from(now))
                 .expiration(Date.from(exp))
                 .signWith(secretKey)
@@ -71,6 +76,19 @@ public class JwtTokenService {
 
         }
         throw new InvalidTokenException("Invalid token");
+    }
+
+    public String extractRole(String token) {
+        try {
+            Claims claims = parseClaims(token);
+            Object rawRole = claims.get("role");
+            if (rawRole instanceof String role && !role.isBlank()) {
+                return role;
+            }
+            return "USER"; // 옛 토큰에 role 없으면 기본값
+        } catch (Exception ignored) {
+            throw new InvalidTokenException("Invalid token");
+        }
     }
 
     private Claims parseClaims(String token) {

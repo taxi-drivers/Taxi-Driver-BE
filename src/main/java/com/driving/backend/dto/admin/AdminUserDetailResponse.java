@@ -10,6 +10,8 @@ public record AdminUserDetailResponse(
         @JsonProperty("user_id") Long userId,
         @JsonProperty("email") String email,
         @JsonProperty("nickname") String nickname,
+        @JsonProperty("role") String role,
+        @JsonProperty("active") boolean active,
         @JsonProperty("skill_level") Integer skillLevel,
         @JsonProperty("primary_vulnerability_type_id") Integer primaryVulnerabilityTypeId,
         @JsonProperty("vulnerability_type_ids") List<Integer> vulnerabilityTypeIds,

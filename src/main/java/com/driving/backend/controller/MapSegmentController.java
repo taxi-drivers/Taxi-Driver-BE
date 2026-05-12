@@ -22,7 +22,7 @@ import org.springframework.web.bind.annotation.RestController;
  * Handles HTTP requests and maps them to service-layer operations.
  */
 @RestController
-@RequestMapping("/map")
+@RequestMapping("/api/map")
 @Tag(name = "Map", description = "지도 초기화와 세그먼트 조회 API")
 public class MapSegmentController {
 

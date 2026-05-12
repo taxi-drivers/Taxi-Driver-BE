@@ -39,6 +39,16 @@ public class User {
     @Column(name = "password_hash", length = 255)
     private String passwordHash;
 
+    /** "USER" or "ADMIN" — 첫 회원가입 또는 env 지정 admin email에는 ADMIN 부여 */
+    @Column(length = 20, nullable = false)
+    @Builder.Default
+    private String role = "USER";
+
+    /** false이면 로그인 차단 (관리자 정지 처리). null은 활성으로 간주 (legacy row 호환) */
+    @Column(columnDefinition = "BOOLEAN DEFAULT TRUE")
+    @Builder.Default
+    private Boolean active = Boolean.TRUE;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 

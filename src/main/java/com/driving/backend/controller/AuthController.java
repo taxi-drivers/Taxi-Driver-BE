@@ -18,7 +18,7 @@ import org.springframework.web.bind.annotation.RestController;
  * Handles HTTP requests and maps them to service-layer operations.
  */
 @RestController
-@RequestMapping("/auth")
+@RequestMapping("/api/auth")
 @Tag(name = "Auth", description = "로그인과 로그아웃 API")
 public class AuthController {
 
@@ -46,6 +46,13 @@ public class AuthController {
             @RequestHeader(value = "Authorization", required = false) String authorizationHeader
     ) {
         return ResponseEntity.ok(authService.logout(authorizationHeader));
+    }
+
+    @PostMapping("/refresh")
+    @Operation(summary = "토큰 재발급", description = "refresh_token으로 새 access_token을 발급합니다.")
+    public ResponseEntity<LoginResponse> refresh(@RequestBody(required = false) java.util.Map<String, String> body) {
+        String refreshToken = body == null ? null : body.get("refresh_token");
+        return ResponseEntity.ok(authService.refresh(refreshToken));
     }
 }
 

@@ -10,7 +10,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@RequestMapping("/survey")
+@RequestMapping("/api/survey")
 @Tag(name = "Survey", description = "설문 문항 조회 API")
 public class SurveyController {
 

@@ -11,6 +11,7 @@ import com.driving.backend.entity.UserProfile;
 import com.driving.backend.entity.UserSurveyHistory;
 import com.driving.backend.entity.UserVulnerabilityMap;
 import com.driving.backend.entity.VulnerabilityType;
+import com.driving.backend.exception.InvalidRequestException;
 import com.driving.backend.exception.UserNotFoundException;
 import com.driving.backend.repository.UserProfileRepository;
 import com.driving.backend.repository.UserRepository;
@@ -77,6 +78,8 @@ public class AdminUserService {
                 user.getUserId(),
                 user.getEmail(),
                 user.getNickname(),
+                user.getRole() == null ? "USER" : user.getRole(),
+                !Boolean.FALSE.equals(user.getActive()),
                 profile != null ? profile.getSkillLevel() : null,
                 profile != null && profile.getVulnerabilityType() != null
                         ? profile.getVulnerabilityType().getVulnerabilityTypeId()
@@ -105,6 +108,27 @@ public class AdminUserService {
         return new AdminSurveyHistoryResponse(userId, histories);
     }
 
+    @Transactional
+    public AdminUserDetailResponse updateRole(Long userId, String role) {
+        if (role == null || (!"USER".equals(role) && !"ADMIN".equals(role))) {
+            throw new InvalidRequestException("role must be USER or ADMIN");
+        }
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new UserNotFoundException("User not found"));
+        user.setRole(role);
+        userRepository.save(user);
+        return getUser(userId);
+    }
+
+    @Transactional
+    public AdminUserDetailResponse updateActive(Long userId, boolean active) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new UserNotFoundException("User not found"));
+        user.setActive(active);
+        userRepository.save(user);
+        return getUser(userId);
+    }
+
     private AdminUserSummaryResponse toSummary(User user) {
         Long userId = user.getUserId();
         UserProfile profile = userProfileRepository.findById(userId).orElse(null);
@@ -115,6 +139,8 @@ public class AdminUserService {
                 userId,
                 user.getEmail(),
                 user.getNickname(),
+                user.getRole() == null ? "USER" : user.getRole(),
+                !Boolean.FALSE.equals(user.getActive()),
                 profile != null ? profile.getSkillLevel() : null,
                 profile != null && profile.getVulnerabilityType() != null
                         ? profile.getVulnerabilityType().getVulnerabilityTypeId()

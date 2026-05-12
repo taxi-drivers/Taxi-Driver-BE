@@ -11,9 +11,14 @@ import com.driving.backend.exception.InvalidRequestException;
 import com.driving.backend.exception.InvalidTokenException;
 import com.driving.backend.repository.UserProfileRepository;
 import com.driving.backend.repository.UserRepository;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
+
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.Set;
 
 @Service
 public class AuthService {
@@ -24,15 +29,27 @@ public class AuthService {
     private final UserRepository userRepository;
     private final UserProfileRepository userProfileRepository;
     private final JwtTokenService jwtTokenService;
+    private final Set<String> adminEmails;
 
     public AuthService(
             UserRepository userRepository,
             UserProfileRepository userProfileRepository,
-            JwtTokenService jwtTokenService
+            JwtTokenService jwtTokenService,
+            @Value("${app.auth.admin-emails:}") String adminEmailsCsv
     ) {
         this.userRepository = userRepository;
         this.userProfileRepository = userProfileRepository;
         this.jwtTokenService = jwtTokenService;
+        this.adminEmails = parseAdminEmails(adminEmailsCsv);
+    }
+
+    private Set<String> parseAdminEmails(String csv) {
+        if (!StringUtils.hasText(csv)) return Set.of();
+        return Arrays.stream(csv.split(","))
+                .map(String::trim)
+                .map(String::toLowerCase)
+                .filter(s -> !s.isEmpty())
+                .collect(java.util.stream.Collectors.toCollection(HashSet::new));
     }
 
     @Transactional(readOnly = true)
@@ -46,8 +63,13 @@ public class AuthService {
             throw new InvalidCredentialsException("Invalid email or password");
         }
 
+        if (Boolean.FALSE.equals(user.getActive())) {
+            throw new InvalidCredentialsException("Suspended account");
+        }
+
         UserProfile profile = userProfileRepository.findById(user.getUserId()).orElse(null);
-        String accessToken = jwtTokenService.createAccessToken(user.getUserId());
+        String role = user.getRole() == null ? "USER" : user.getRole();
+        String accessToken = jwtTokenService.createAccessToken(user.getUserId(), role);
         String refreshToken = jwtTokenService.createRefreshToken(user.getUserId());
 
         return new LoginResponse(
@@ -58,7 +80,8 @@ public class AuthService {
                         ? profile.getVulnerabilityType().getVulnerabilityTypeId()
                         : null,
                 accessToken,
-                refreshToken
+                refreshToken,
+                role
         );
     }
 
@@ -71,6 +94,11 @@ public class AuthService {
             throw new InvalidRequestException("Email already exists");
         }
 
+        // 첫 회원가입 사용자 또는 env 지정 admin email은 ADMIN, 그 외는 USER
+        boolean isFirstUser = userRepository.count() == 0;
+        boolean isConfiguredAdmin = adminEmails.contains(email.toLowerCase());
+        String role = (isFirstUser || isConfiguredAdmin) ? "ADMIN" : "USER";
+
         User user = User.builder()
                 .email(email)
                 .passwordHash(org.springframework.security.crypto.bcrypt.BCrypt.hashpw(
@@ -78,6 +106,7 @@ public class AuthService {
                         org.springframework.security.crypto.bcrypt.BCrypt.gensalt()
                 ))
                 .nickname(request.nickname().trim())
+                .role(role)
                 .build();
         User savedUser = userRepository.save(user);
 
@@ -87,7 +116,7 @@ public class AuthService {
                 .build();
         UserProfile savedProfile = userProfileRepository.save(profile);
 
-        String accessToken = jwtTokenService.createAccessToken(savedUser.getUserId());
+        String accessToken = jwtTokenService.createAccessToken(savedUser.getUserId(), role);
         String refreshToken = jwtTokenService.createRefreshToken(savedUser.getUserId());
 
         return new LoginResponse(
@@ -96,7 +125,36 @@ public class AuthService {
                 savedProfile.getSkillLevel(),
                 null,
                 accessToken,
-                refreshToken
+                refreshToken,
+                role
+        );
+    }
+
+    /**
+     * refresh_token으로 새 access_token 발급. 토큰 만료 시 자동 갱신용.
+     */
+    @Transactional(readOnly = true)
+    public LoginResponse refresh(String refreshToken) {
+        if (!StringUtils.hasText(refreshToken)) {
+            throw new InvalidTokenException("Refresh token is required");
+        }
+        Long userId = jwtTokenService.extractUserId(refreshToken); // invalid면 throw
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new InvalidTokenException("User not found"));
+        UserProfile profile = userProfileRepository.findById(userId).orElse(null);
+        String role = user.getRole() == null ? "USER" : user.getRole();
+        String newAccess = jwtTokenService.createAccessToken(userId, role);
+        String newRefresh = jwtTokenService.createRefreshToken(userId);
+        return new LoginResponse(
+                user.getUserId(),
+                user.getNickname(),
+                profile != null ? profile.getSkillLevel() : null,
+                profile != null && profile.getVulnerabilityType() != null
+                        ? profile.getVulnerabilityType().getVulnerabilityTypeId()
+                        : null,
+                newAccess,
+                newRefresh,
+                role
         );
     }
 

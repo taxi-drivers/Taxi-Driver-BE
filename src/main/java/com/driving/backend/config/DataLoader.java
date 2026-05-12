@@ -61,7 +61,6 @@ public class DataLoader implements CommandLineRunner {
         loadNodeElevations();
         loadGraphEdges();
         loadEdgeSlopes();
-        loadMockUser();
 
         // 그래프 데이터 임포트 완료 후 인메모리 그래프 구축
         graphService.buildGraph();
@@ -69,29 +68,34 @@ public class DataLoader implements CommandLineRunner {
         log.info("========== DataLoader 완료 ==========");
     }
 
-    // ── 1. vulnerability_type (5건) ──
+    // ── 1. vulnerability_type ──
+    // CSV에 새 row 추가 시 기존 테이블에도 upsert (id가 없는 경우만 insert)
 
     private void loadVulnerabilityTypes() throws Exception {
-        if (vulnerabilityTypeRepository.count() > 0) {
-            log.info("[SKIP] vulnerability_type: 이미 {}건 존재", vulnerabilityTypeRepository.count());
-            return;
-        }
-
         List<String[]> rows = readCsv("data/vulnerability_type.csv");
-        List<VulnerabilityType> entities = new ArrayList<>();
+        long existing = vulnerabilityTypeRepository.count();
 
+        int inserted = 0;
         for (String[] row : rows) {
-            entities.add(VulnerabilityType.builder()
-                    .vulnerabilityTypeId(parseInt(row[0]))
+            Integer id = parseInt(row[0]);
+            if (vulnerabilityTypeRepository.existsById(id)) {
+                continue;
+            }
+            vulnerabilityTypeRepository.save(VulnerabilityType.builder()
+                    .vulnerabilityTypeId(id)
                     .code(row[1])
                     .name(row[2])
                     .description(row[3])
                     .iconKey(row[4])
                     .build());
+            inserted++;
         }
 
-        vulnerabilityTypeRepository.saveAll(entities);
-        log.info("[OK] vulnerability_type: {}건 임포트", entities.size());
+        if (inserted == 0) {
+            log.info("[SKIP] vulnerability_type: 이미 {}건 존재 (변경 없음)", existing);
+        } else {
+            log.info("[OK] vulnerability_type: {}건 신규 추가 (기존 {}건)", inserted, existing);
+        }
     }
 
     // ── 2. level_rule (1건) ──
@@ -468,41 +472,6 @@ public class DataLoader implements CommandLineRunner {
         } else {
             log.info("[OK] edge_slopes: {}건 갱신 (기존 {}건, 한강 다리 위 NULL 제외)", updated, alreadyHas);
         }
-    }
-
-    // ── 7. mock user (1건) ──
-
-    private void loadMockUser() {
-        if (userRepository.count() > 0) {
-            log.info("[SKIP] users: 이미 {}건 존재", userRepository.count());
-            return;
-        }
-
-        User mockUser = User.builder()
-                .email("test@test.com")
-                .passwordHash(BCrypt.hashpw("1234", BCrypt.gensalt()))
-                .nickname("테스트유저")
-                .build();
-        userRepository.save(mockUser);
-
-        VulnerabilityType primaryType = vulnerabilityTypeRepository.findById(1).orElse(null);
-
-        UserProfile profile = UserProfile.builder()
-                .user(mockUser)
-                .skillLevel(50)
-                .vulnerabilityType(primaryType)
-                .build();
-        userProfileRepository.save(profile);
-
-        if (primaryType != null) {
-            userVulnerabilityMapRepository.save(UserVulnerabilityMap.builder()
-                    .userId(mockUser.getUserId())
-                    .vulnerabilityTypeId(primaryType.getVulnerabilityTypeId())
-                    .createdAt(LocalDateTime.now())
-                    .build());
-        }
-
-        log.info("[OK] mock user 생성 (id={}, email=test@test.com, skillLevel=50)", mockUser.getUserId());
     }
 
     // ── CSV 파싱 유틸 ──

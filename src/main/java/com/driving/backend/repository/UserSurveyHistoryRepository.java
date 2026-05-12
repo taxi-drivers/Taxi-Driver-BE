@@ -8,4 +8,6 @@ import java.util.List;
 public interface UserSurveyHistoryRepository extends JpaRepository<UserSurveyHistory, Long> {
 
     List<UserSurveyHistory> findByUserUserIdOrderByCreatedAtDesc(Long userId);
+
+    void deleteByUserUserId(Long userId);
 }

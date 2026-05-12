@@ -118,23 +118,18 @@ public class GraphService {
      */
     public RouteResult findRoute(double startLat, double startLon,
                                   double endLat, double endLon) {
-        return findRoute(startLat, startLon, endLat, endLon, null);
+        return findRoute(startLat, startLon, endLat, endLon, java.util.Map.of(), null);
     }
 
     /**
-     * 경로 탐색 (난이도 가중치 적용).
+     * 경로 탐색 (vulnerability strength 기반 가중치 적용).
      *
-     * @param vulnerabilityTypeCodes 사용자 취약특성 코드 리스트 (null이면 기본 경로)
+     * @param vulnStrengths vulnerability_code → strength(0~1) map.
+     *                      비어있으면 거리만 사용 (fast 모드).
      */
     public RouteResult findRoute(double startLat, double startLon,
                                   double endLat, double endLon,
-                                  List<String> vulnerabilityTypeCodes) {
-        return findRoute(startLat, startLon, endLat, endLon, vulnerabilityTypeCodes, null);
-    }
-
-    public RouteResult findRoute(double startLat, double startLon,
-                                  double endLat, double endLon,
-                                  List<String> vulnerabilityTypeCodes,
+                                  Map<String, Double> vulnStrengths,
                                   Integer skillLevel) {
         if (graph == null) {
             throw new IllegalStateException("그래프가 구축되지 않았습니다.");
@@ -147,11 +142,10 @@ public class GraphService {
             throw new IllegalArgumentException("출발/도착 좌표 근처에 노드를 찾을 수 없습니다.");
         }
 
-        // 난이도 가중치 적용
-        boolean useDifficulty = (vulnerabilityTypeCodes != null && !vulnerabilityTypeCodes.isEmpty())
-                || skillLevel != null;
+        // strength 비어있으면 거리만 (fast 모드)
+        boolean useDifficulty = vulnStrengths != null && !vulnStrengths.isEmpty();
         if (useDifficulty) {
-            applyDifficultyWeights(vulnerabilityTypeCodes, skillLevel);
+            applyDifficultyWeights(vulnStrengths, skillLevel);
         } else {
             applyDistanceOnlyWeights();
         }
@@ -231,49 +225,61 @@ public class GraphService {
      * - α: 기본 난이도 가중치 (0.5)
      * - β: 취약특성 매칭 시 추가 페널티 (1.0)
      */
-    private void applyDifficultyWeights(List<String> vulnerabilityCodes, Integer skillLevel) {
-        final double ALPHA = 0.5;  // 기본 난이도 영향
-        final double BETA = 1.0;   // 취약특성 추가 페널티
-
+    private void applyDifficultyWeights(Map<String, Double> vulnStrengths, Integer skillLevel) {
         double skillSensitivity = calculateSkillSensitivity(skillLevel);
         double alpha = 0.25 + (0.75 * skillSensitivity);
         double beta = 0.8 + (0.7 * skillSensitivity);
 
-        Set<String> vulnSet = vulnerabilityCodes == null
-                ? Set.of()
-                : new HashSet<>(vulnerabilityCodes);
+        Map<String, Double> strengths = vulnStrengths == null ? Map.of() : vulnStrengths;
 
         for (Map.Entry<WeightedRoadEdge, GraphEdge> entry : edgeMetadata.entrySet()) {
             GraphEdge edge = entry.getValue();
             double distance = edge.getLengthM();
             double difficulty = edge.getTotalScore() != null ? edge.getTotalScore() : 35.0;
 
-            // 난이도 0~100 → 0~1 정규화
             double normalizedDiff = difficulty / 100.0;
-
-            // 취약특성 페널티 계산
-            double vulnPenalty = 0.0;
             String highway = edge.getHighway();
+            double vulnPenalty = 0.0;
 
-            if (vulnSet.contains("AVOID_HIGHWAY") &&
-                    (highway != null && (highway.equals("trunk") || highway.equals("trunk_link")))) {
-                vulnPenalty += 1.0;
+            double highwayStrength = strengths.getOrDefault("AVOID_HIGHWAY", 0.0);
+            if (highwayStrength > 0 && highway != null
+                    && (highway.equals("trunk") || highway.equals("trunk_link")
+                        || highway.equals("motorway") || highway.equals("motorway_link"))) {
+                vulnPenalty += 1.0 * highwayStrength;
             }
-            if (vulnSet.contains("PREFER_WIDE_ROAD") &&
-                    edge.getRoadScaleScore() != null && edge.getRoadScaleScore() >= 70) {
-                vulnPenalty += 0.8;
+
+            double wideStrength = strengths.getOrDefault("PREFER_WIDE_ROAD", 0.0);
+            if (wideStrength > 0 && edge.getRoadScaleScore() != null) {
+                double scaleNorm = edge.getRoadScaleScore() / 100.0;
+                double residentialBonus = (highway != null
+                        && (highway.equals("residential") || highway.equals("service") || highway.equals("unclassified")))
+                        ? 0.2 : 0.0;
+                vulnPenalty += 0.8 * wideStrength * Math.min(scaleNorm + residentialBonus, 1.0);
             }
-            if (vulnSet.contains("AVOID_COMPLEX_INTERSECTION") &&
-                    edge.getIntersectionScore() != null && edge.getIntersectionScore() >= 50) {
-                vulnPenalty += 0.8;
+
+            double interStrength = strengths.getOrDefault("AVOID_COMPLEX_INTERSECTION", 0.0);
+            if (interStrength > 0 && edge.getIntersectionScore() != null) {
+                double interNorm = edge.getIntersectionScore() / 100.0;
+                double pedBonus = (highway != null
+                        && (highway.equals("residential") || highway.equals("living_street")))
+                        ? 0.15 : 0.0;
+                vulnPenalty += 0.8 * interStrength * Math.min(interNorm + pedBonus, 1.0);
             }
-            if (vulnSet.contains("AVOID_HIGH_TRAFFIC") &&
-                    edge.getTrafficVolumeScore() != null && edge.getTrafficVolumeScore() >= 60) {
-                vulnPenalty += 0.8;
+
+            double trafficStrength = strengths.getOrDefault("AVOID_HIGH_TRAFFIC", 0.0);
+            if (trafficStrength > 0 && edge.getTrafficVolumeScore() != null) {
+                vulnPenalty += 0.8 * trafficStrength * (edge.getTrafficVolumeScore() / 100.0);
             }
-            if (vulnSet.contains("AVOID_ACCIDENT_PRONE") &&
-                    edge.getAccidentRateScore() != null && edge.getAccidentRateScore() >= 50) {
-                vulnPenalty += 1.0;
+
+            double accidentStrength = strengths.getOrDefault("AVOID_ACCIDENT_PRONE", 0.0);
+            if (accidentStrength > 0 && edge.getAccidentRateScore() != null) {
+                vulnPenalty += 1.0 * accidentStrength * (edge.getAccidentRateScore() / 100.0);
+            }
+
+            double slopeStrength = strengths.getOrDefault("AVOID_STEEP_SLOPE", 0.0);
+            if (slopeStrength > 0 && edge.getSlope() != null) {
+                double slopeNorm = Math.min(Math.abs(edge.getSlope()) / 0.08, 1.0);
+                vulnPenalty += 0.8 * slopeStrength * slopeNorm;
             }
 
             double cost = distance * (1.0 + alpha * normalizedDiff + beta * vulnPenalty);

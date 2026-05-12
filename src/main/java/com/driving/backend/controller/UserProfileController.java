@@ -11,6 +11,7 @@ import com.driving.backend.service.UserSurveyService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -20,7 +21,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@RequestMapping("/users/me")
+@RequestMapping("/api/users/me")
 @Tag(name = "User Profile", description = "내 정보와 설문 결과 API")
 public class UserProfileController {
 
@@ -88,5 +89,14 @@ public class UserProfileController {
             @RequestBody(required = false) SubmitSurveyRequest request
     ) {
         return ResponseEntity.ok(userSurveyService.submitSurvey(authorizationHeader, request));
+    }
+
+    @DeleteMapping
+    @Operation(summary = "회원 탈퇴", description = "현재 로그인 사용자의 계정과 모든 관련 데이터를 삭제합니다.")
+    public ResponseEntity<Void> deleteMe(
+            @RequestHeader(value = "Authorization", required = false) String authorizationHeader
+    ) {
+        userProfileService.deleteMyAccount(authorizationHeader);
+        return ResponseEntity.noContent().build();
     }
 }

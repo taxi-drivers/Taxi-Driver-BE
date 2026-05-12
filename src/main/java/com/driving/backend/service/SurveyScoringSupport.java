@@ -8,7 +8,7 @@ import java.util.Set;
 
 final class SurveyScoringSupport {
 
-    static final String SURVEY_VERSION = "survey-v2";
+    static final String SURVEY_VERSION = "survey-v3";
 
     private static final int MIN_OPTION_VALUE = 1;
     private static final int MAX_OPTION_VALUE = 5;
@@ -21,10 +21,8 @@ final class SurveyScoringSupport {
             new SurveyQuestionDefinition("INTERSECTION_COMPLEX_DIFFICULTY", "교차", "복잡한 오거리나 비정형 교차로에서 경로를 찾는 데 어려움을 느낀다.", false, List.of("AVOID_COMPLEX_INTERSECTION")),
             new SurveyQuestionDefinition("DRIVING_ENV_BACKSTREET_STRESS", "주행환경", "이면도로(골목길) 주행 시 불법 주정차 차량으로 인한 스트레스가 크다.", false, List.of("PREFER_WIDE_ROAD")),
             new SurveyQuestionDefinition("DRIVING_HABIT_HARSH_BRAKING", "운전 습관", "평소 급가속이나 급제동을 자주 하는 편이다.", false, List.of("AVOID_ACCIDENT_PRONE")),
-            new SurveyQuestionDefinition("WEATHER_ICY_CONFIDENCE", "기상", "결빙 구간에서의 운전을 경험해봤거나 운전에 자신이 있다.", true, List.of("AVOID_ACCIDENT_PRONE")),
-            new SurveyQuestionDefinition("PEDESTRIAN_SAFETY_AVOID_BUSY_ZONE", "보행 안전", "보행자가 많은 어린이 보호구역이나 시장통 주행을 기피한다.", false, List.of("AVOID_HIGH_TRAFFIC")),
-            new SurveyQuestionDefinition("PSYCHOLOGY_UNFAMILIAR_ROUTE_ANXIETY", "심리", "초행길 운전 시 내비게이션 안내가 있어도 불안함을 자주 느낀다.", false, List.of("AVOID_HIGH_TRAFFIC")),
-            new SurveyQuestionDefinition("DRIVING_SKILL_PARKING_CONFIDENCE", "운전 숙련도", "좁은 공간에서의 평행 주차나 후진 주차에 자신이 없다.", false, List.of("PREFER_WIDE_ROAD")),
+            new SurveyQuestionDefinition("WEATHER_ICY_CONFIDENCE", "기상", "결빙 구간에서의 운전을 경험해봤거나 운전에 자신이 있다.", true, List.of("AVOID_STEEP_SLOPE")),
+            new SurveyQuestionDefinition("PEDESTRIAN_SAFETY_AVOID_BUSY_ZONE", "보행 안전", "보행자가 많은 어린이 보호구역이나 시장통 주행을 기피한다.", false, List.of("AVOID_COMPLEX_INTERSECTION")),
             new SurveyQuestionDefinition("INCIDENT_RESPONSE_SLOW", "돌발 상황", "예기치 못한 공사 구간이나 사고 구간 인지 시 대처가 느린 편이다.", false, List.of("AVOID_ACCIDENT_PRONE"))
     );
 
@@ -33,6 +31,43 @@ final class SurveyScoringSupport {
 
     static List<SurveyQuestionDefinition> questions() {
         return QUESTIONS;
+    }
+
+    /**
+     * 응답 Map에서 vulnerability별 평균 risk strength (0~1) 계산.
+     * 임계값(threshold) 통과 여부와 무관하게 모든 vulnerability에 대해 strength를 산출.
+     * 경로 페널티 가중치로 직접 사용된다.
+     */
+    static java.util.Map<String, Double> computeStrengths(java.util.Map<String, Integer> answers) {
+        if (answers == null || answers.isEmpty()) {
+            return java.util.Map.of();
+        }
+
+        java.util.Map<String, Double> sums = new java.util.LinkedHashMap<>();
+        java.util.Map<String, Integer> counts = new java.util.LinkedHashMap<>();
+
+        for (SurveyQuestionDefinition q : QUESTIONS) {
+            Integer answer = answers.get(q.code());
+            if (answer == null || answer < MIN_OPTION_VALUE || answer > MAX_OPTION_VALUE) {
+                continue;
+            }
+            double normalizedSkill = q.reverseScored()
+                    ? (answer - MIN_OPTION_VALUE) / 4d
+                    : (MAX_OPTION_VALUE - answer) / 4d;
+            double risk = 1d - normalizedSkill;
+
+            for (String code : q.vulnerabilityCodes()) {
+                sums.merge(code, risk, Double::sum);
+                counts.merge(code, 1, Integer::sum);
+            }
+        }
+
+        java.util.Map<String, Double> result = new java.util.LinkedHashMap<>();
+        for (var entry : sums.entrySet()) {
+            int count = counts.getOrDefault(entry.getKey(), 1);
+            result.put(entry.getKey(), entry.getValue() / count);
+        }
+        return result;
     }
 
     static SurveyEvaluation evaluate(Map<String, Integer> answers) {
